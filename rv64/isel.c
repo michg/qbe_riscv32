@@ -172,33 +172,82 @@ selcmp(Ins i, int k, int op, Fn *fn)
 }
 
 static void
-sel(Ins i, Fn *fn)
+selbcond(Ins i, int k, int op, Blk *b, Fn *fn){
+	int swap;
+	Ins *icmp;
+	switch(op) {
+		case Cieq:
+			op = Orbeq; swap = 0;
+			break;
+		case Cine:
+			op = Orbne; swap = 0;
+			break;
+		case Cisge:
+			op = Orbge; swap = 0;
+			break;
+		case Cisgt:
+			op = Orblt; swap = 1;
+			break;
+		case Cisle:
+			op = Orbge; swap = 1;
+			break;
+		case Cislt:
+			op = Orblt; swap = 0;
+			break;
+		case Ciuge:
+			op = Orbgeu; swap = 0;
+			break;
+		case Ciugt:
+			op = Orbltu; swap = 1;
+			break;
+		case Ciule:
+			op = Orbgeu; swap = 1;
+			break;
+		case Ciult:
+			op = Orbltu; swap = 0;
+			break;
+		default:
+		assert(0 && "unknown comparison");
+	}
+	assert(b->s2);
+	if(swap)
+		emit(op, i.cls, i.to, i.arg[1], i.arg[0]);
+	else
+		emit(op, i.cls, i.to, i.arg[0], i.arg[1]);
+	icmp = curi;
+	fixarg(&icmp->arg[0], k, icmp, fn);
+	fixarg(&icmp->arg[1], k, icmp, fn);
+}
+
+static void
+sel(Ins *i, BSet *pused, Blk *b, Fn *fn)
 {
 	Ins *i0;
 	int ck, cc;
-
-	if (INRANGE(i.op, Oalloc, Oalloc1)) {
+	if (INRANGE(i->op, Oalloc, Oalloc1)) {
 		i0 = curi - 1;
-		salloc(i.to, i.arg[0], fn);
+		salloc(i->to, i->arg[0], fn);
 		fixarg(&i0->arg[0], Kl, i0, fn);
 		return;
 	}
-	if (iscmp(i.op, &ck, &cc)) {
-		selcmp(i, ck, cc, fn);
+	if (iscmp(i->op, &ck, &cc)) {
+		if (b->jmp.type == Jjnz && (KBASE(ck) == 0) && !bshas(pused, b->id)) {
+		   selbcond(*i, ck, cc, b, fn);
+		} else
+		  selcmp(*i, ck, cc, fn);
 		return;
 	}
-	if (i.op != Onop) {
-		emiti(i);
+	if (i->op != Onop) {
+		emiti(*i);
 		i0 = curi; /* fixarg() can change curi */
-		fixarg(&i0->arg[0], argcls(&i, 0), i0, fn);
-		fixarg(&i0->arg[1], argcls(&i, 1), i0, fn);
+		fixarg(&i0->arg[0], argcls(i, 0), i0, fn);
+		fixarg(&i0->arg[1], argcls(i, 1), i0, fn);
 	}
 }
 
 static void
 seljmp(Blk *b, Fn *fn)
 {
-	/* TODO: replace cmp+jnz with beq/bne/blt[u]/bge[u] */
 	if (b->jmp.type == Jjnz)
 		fixarg(&b->jmp.arg, Kw, 0, fn);
 }
@@ -212,6 +261,7 @@ rv64_isel(Fn *fn)
 	uint n;
 	int al;
 	int64_t sz;
+	BSet pused[1];
 
 	/* assign slots to fast allocs */
 	b = fn->start;
@@ -233,6 +283,15 @@ rv64_isel(Fn *fn)
 				*i = (Ins){.op = Onop};
 			}
 
+	bsinit(pused, fn->nblk);
+	for (b=fn->start; b; b=b->link) {
+		  for (p=b->phi; p; p=p->link) {
+			for (n=0;n<p->narg; n++) {
+			  bsset(pused,p->blk[n]->id);
+			}
+		}
+	}
+
 	for (b=fn->start; b; b=b->link) {
 		curi = &insb[NIns];
 		for (sb=(Blk*[3]){b->s1, b->s2, 0}; *sb; sb++)
@@ -243,7 +302,7 @@ rv64_isel(Fn *fn)
 			}
 		seljmp(b, fn);
 		for (i=&b->ins[b->nins]; i!=b->ins;)
-			sel(*--i, fn);
+			sel(--i, pused, b, fn);
 		b->nins = &insb[NIns] - curi;
 		idup(&b->ins, curi, b->nins);
 	}

@@ -142,6 +142,7 @@ O(afcmp,   T(e,e,s,d, e,e,s,d), 0) X(0, 0, 0) V(0)
 O(reqz,    T(w,l,e,e, x,x,e,e), 0) X(0, 0, 0) V(0)
 O(rnez,    T(w,l,e,e, x,x,e,e), 0) X(0, 0, 0) V(0)
 
+
 /* Arguments, Parameters, and Calls */
 O(par,     T(x,x,x,x, x,x,x,x), 0) X(0, 0, 0) V(0)
 O(parc,    T(e,x,e,e, e,x,e,e), 0) X(0, 0, 0) V(0)
@@ -172,6 +173,12 @@ O(flagfne,  T(x,x,e,e, x,x,e,e), 0) X(0, 0, 1) V(0)
 O(flagfo,   T(x,x,e,e, x,x,e,e), 0) X(0, 0, 1) V(0)
 O(flagfuo,  T(x,x,e,e, x,x,e,e), 0) X(0, 0, 1) V(0)
 
+O(rbeq,    T(w,l,e,e, w,l,e,e), 0) X(0, 0, 0) V(0)
+O(rbne,    T(w,l,e,e, w,l,e,e), 0) X(0, 0, 0) V(0)
+O(rbge,    T(w,l,e,e, w,l,e,e), 0) X(0, 0, 0) V(0)
+O(rblt,    T(w,l,e,e, w,l,e,e), 0) X(0, 0, 0) V(0)
+O(rbgeu,   T(w,l,e,e, w,l,e,e), 0) X(0, 0, 0) V(0)
+O(rbltu,   T(w,l,e,e, w,l,e,e), 0) X(0, 0, 0) V(0)
 
 #undef T
 #undef X

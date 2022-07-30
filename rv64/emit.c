@@ -99,17 +99,17 @@ static char *rname[] = {
 	[SP] = "x2", 
 	[GP] = "x3",
 	[TP] = "x4",
-	[RA] = "x1",	
+	[RA] = "x1",
 	[T6] = "x31",
 	[T0] = "x5", "x6", "x7", "x28", "x29", "x30",
 	[A0] = "x10", "x11", "x12", "x13", "x14", "x15", "x16", "x17",
 	[S1] = "x9", "x18", "x19", "x20", "x21", "x22", "x23", "x24",
-	       "x25", "x26", "x27",
+		   "x25", "x26", "x27",
 	[FT0] = "f0", "f1", "f2", "f3", "f4", "f5", "f6", "f7",
-	        "f28", "f29", "f30",
+			"f28", "f29", "f30",
 	[FA0] = "f10", "f11", "f12", "f13", "f14", "f15", "f16", "f17",
 	[FS0] = "f8", "f9", "f18", "f19", "f20", "f21", "f22", "f23",
-	        "f24", "f25", "f26", "f27",
+			"f24", "f25", "f26", "f27",
 	[FT11] = "f31",
 };
 
@@ -268,13 +268,49 @@ fixslot(Ref *pr, Fn *fn, FILE *f)
 	}
 }
 
+
+
+
+	#define BLIST \
+	X(beq) \
+	X(bne) \
+	X(bge) \
+	X(blt) \
+	X(bgeu) \
+	X(bltu) \
+
+	enum btypes {
+		#define X(name) name,
+		BLIST
+		#undef X
+		NBTYPES
+	};
+	char *bnames[NBTYPES] = {
+		#define X(name) [name] = #name,
+		BLIST
+		#undef X
+	};
+
+	int invb[NBTYPES] = {
+		[beq] = bne,
+		[bne] = beq,
+		[bge] = blt,
+		[blt] = bge,
+		[bgeu] = bltu,
+		[bltu] = bgeu
+	};
+
+int cbem = 0;
 static void
-emitins(Ins *i, Fn *fn, FILE *f)
+emitins(Ins *i, Fn *fn, Blk *b, int id0, FILE *f)
 {
 	int o;
 	char *rn;
 	int64_t s;
+	Blk *src;
 	Con *con;
+	int bname;
+
 
 	switch (i->op) {
 	default:
@@ -298,10 +334,10 @@ emitins(Ins *i, Fn *fn, FILE *f)
 				break;
 		}
 		emitf(omap[o].asm, i, fn, f);
-		break;
+		return;
 	case Ocopy:
 		if (req(i->to, i->arg[0]))
-			break;
+			return;
 		if (rtype(i->to) == RSlot) {
 			switch (rtype(i->arg[0])) {
 			case RSlot:
@@ -321,7 +357,7 @@ emitins(Ins *i, Fn *fn, FILE *f)
 				fixslot(&i->arg[1], fn, f);
 				goto Table;
 			}
-			break;
+			return;
 		}
 		assert(isreg(i->to));
 		switch (rtype(i->arg[0])) {
@@ -336,9 +372,9 @@ emitins(Ins *i, Fn *fn, FILE *f)
 			assert(isreg(i->arg[0]));
 			goto Table;
 		}
-		break;
+		return;
 	case Onop:
-		break;
+		return;
 	case Oaddr:
 		assert(rtype(i->arg[0]) == RSlot);
 		rn = rname[i->to.val];
@@ -352,7 +388,7 @@ emitins(Ins *i, Fn *fn, FILE *f)
 				rn, s, rn, rn
 			);
 		}
-		break;
+		return;
 	case Ocall:
 		switch (rtype(i->arg[0])) {
 		case RCon:
@@ -368,18 +404,44 @@ emitins(Ins *i, Fn *fn, FILE *f)
 		invalid:
 			die("invalid call argument");
 		}
-		break;
+		return;
 	case Osalloc:
 		emitf("sub x2, x2, %0", i, fn, f);
 		if (!req(i->to, R))
 			emitf("mv %=, x2", i, fn, f);
-		break;
+		return;
 	case Oextsw:
 	case Oextuw:
-	    if(i->to.val != i->arg[0].val)
-	        emitf("mv %=, %0", i, fn, f);
-	    break;
+		if(i->to.val != i->arg[0].val)
+			emitf("mv %=, %0", i, fn, f);
+		return;
+	case Orbeq:
+		bname = beq;
+		break;
+	case Orbne:
+		bname = bne;
+		break;
+	case Orbge:
+		bname = bge;
+		break;
+	case Orblt:
+		bname = blt;
+		break;
+	case Orbgeu:
+		bname = bgeu;
+		break;
+	case Orbltu:
+		bname = bltu;
+		break;
 	}
+	src = b->s2;
+	if (b->link == b->s2)
+		src = b->s1;
+	else
+	   bname = invb[bname];
+	if (b->jmp.type == Jjnz)
+		fprintf(f, "\t%s %s, %s, .L%d\n", bnames[bname], rname[i->arg[0].val], rname[i->arg[1].val], id0+src->id);    
+	cbem = 1;
 }
 
 /*
@@ -463,11 +525,11 @@ rv64_emitfn(Fn *fn, FILE *f)
 		}
 	}
 
-	for (lbl=0, b=fn->start; b; b=b->link) {
+	for (lbl=0, b=fn->start; b; b=b->link, cbem=0) {
 		if (lbl || b->npred > 1)
 			fprintf(f, ".L%d:\n", id0+b->id);
 		for (i=b->ins; i!=&b->ins[b->nins]; i++)
-			emitins(i, fn, f);
+			emitins(i, fn, b, id0, f);
 		lbl = 1;
 		switch (b->jmp.type) {
 		case Jret0:
@@ -518,12 +580,13 @@ rv64_emitfn(Fn *fn, FILE *f)
 				neg = 1;
 			}
 			assert(isreg(b->jmp.arg));
-			fprintf(f,
-				"\tb%sz %s, .L%d\n",
-				neg ? "ne" : "eq",
-				rname[b->jmp.arg.val],
-				id0+b->s2->id
-			);
+			if(!cbem)
+				fprintf(f,
+					"\tb%sz %s, .L%d\n",
+					neg ? "ne" : "eq",
+					rname[b->jmp.arg.val],
+					id0+b->s2->id
+				);
 			goto Jmp;
 		}
 	}
