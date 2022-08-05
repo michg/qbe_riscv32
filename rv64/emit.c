@@ -493,7 +493,7 @@ rv64_emitfn(Fn *fn, FILE *f)
 			);
 	}
 	fprintf(f, "\tsw x8, -8(x2)\n");
-	fprintf(f, "\tsw x1, -4(x2)\n");
+	if(fn->ncalls) fprintf(f, "\tsw x1, -4(x2)\n");
 	fprintf(f, "\taddi x8, x2, -8\n");
 
 	frame = (8 + 4 * fn->slot + 15) & ~15;
@@ -557,12 +557,13 @@ rv64_emitfn(Fn *fn, FILE *f)
 				}
 			}
 			fprintf(f,
-				"\taddi x2, x8, %d\n"
-				"\tlw x1, 4(x8)\n"
-				"\tlw x8, 0(x8)\n"
-				"\tret\n",
+				"\taddi x2, x8, %d\n",
 				8 + fn->vararg * 32
 			);
+			if(fn->ncalls) fprintf(f,"\tlw x1, 4(x8)\n");
+			fprintf(f,"\tlw x8, 0(x8)\n"
+                      "\tret\n");
+			
 			break;
 		case Jjmp:
 		Jmp:

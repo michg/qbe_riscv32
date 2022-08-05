@@ -344,6 +344,7 @@ struct Fn {
 	int ntmp;
 	int ncon;
 	int nmem;
+	int ncalls;
 	uint nblk;
 	int retty; /* index in typ[], -1 if no aggregate return */
 	Ref retr;

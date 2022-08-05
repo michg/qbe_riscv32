@@ -587,6 +587,7 @@ rv64_abi(Fn *fn)
 	/* lower calls, returns, and vararg instructions */
 	il = 0;
 	b = fn->start;
+	fn->ncalls = 0;
 	do {
 		if (!(b = b->link))
 			b = fn->start; /* do it last */
@@ -600,6 +601,7 @@ rv64_abi(Fn *fn)
 				emiti(*i);
 				break;
 			case Ocall:
+			    fn->ncalls++;
 				for (i0=i; i0>b->ins; i0--)
 					if (!isarg((i0-1)->op))
 						break;
