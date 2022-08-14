@@ -72,6 +72,7 @@ struct BSet {
 struct Ref {
 	uint type:3;
 	uint val:29;
+	uint lval:2;
 };
 
 enum {
@@ -83,14 +84,15 @@ enum {
 	RMem,
 };
 
-#define R        (Ref){0, 0}
-#define TMP(x)   (Ref){RTmp, x}
-#define CON(x)   (Ref){RCon, x}
+#define R        (Ref){0, 0, 0}
+#define TMP(x)   (Ref){RTmp, x, 0}
+#define CON(x)   (Ref){RCon, x, 0}
 #define CON_Z    CON(0)          /* reserved zero constant */
-#define SLOT(x)  (Ref){RSlot, (x)&0x1fffffff}
-#define TYPE(x)  (Ref){RType, x}
-#define CALL(x)  (Ref){RCall, x}
-#define MEM(x)   (Ref){RMem, x}
+#define SLOT(x)  (Ref){RSlot, (x)&0x1fffffff, 0}
+#define FSLOT(x, y)  (Ref){RSlot, (x)&0x1fffffff, (y)&3}
+#define TYPE(x)  (Ref){RType, x, 0}
+#define CALL(x)  (Ref){RCall, x, 0}
+#define MEM(x)   (Ref){RMem, x, 0}
 
 static inline int req(Ref a, Ref b)
 {

@@ -219,11 +219,24 @@ selbcond(Ins i, int k, int op, Blk *b, Fn *fn){
 	fixarg(&icmp->arg[1], k, icmp, fn);
 }
 
+Ins *nmem;
+int dst = -1;
+
+struct {
+Ins* ins;
+int argno;
+Ref r;
+} mop;
+
 static void
 sel(Ins *i, BSet *pused, Blk *b, Fn *fn)
 {
 	Ins *i0;
+	Tmp *t;
+	Use *u;
 	int ck, cc;
+	int s;
+
 	if (INRANGE(i->op, Oalloc, Oalloc1)) {
 		i0 = curi - 1;
 		salloc(i->to, i->arg[0], fn);
@@ -237,9 +250,34 @@ sel(Ins *i, BSet *pused, Blk *b, Fn *fn)
 		  selcmp(*i, ck, cc, fn);
 		return;
 	}
+	if(mop.ins!=&insb[NIns] && i->op == Oadd && req(i->to, mop.r) && rtype(i->arg[0])==RTmp && fn->tmp[i->arg[0].val].slot!=-1 && rtype(i->arg[1])==RCon) {
+	   s = (fn->tmp[i->arg[0].val].slot*4 + fn->con[i->arg[1].val].bits.i); 
+       i0 = curi;
+       while(i0 != mop.ins) {
+           if(req(i0->to, mop.r)) {
+               if((i0->op == Oadd) && req(i0->arg[0], mop.r) && (rtype(i0->arg[1])==RCon)) {
+                 s += fn->con[i0->arg[1].val].bits.i;
+               } else {
+                mop.ins=&insb[NIns];
+                break;
+              }
+           }
+          i0++;
+       }
+       if(mop.ins!=&insb[NIns]) {
+          mop.ins->arg[mop.argno] = FSLOT(s >> 2, s & 3);
+          mop.ins=&insb[NIns];
+          return;
+       }
+	}
 	if (i->op != Onop) {
 		emiti(*i);
 		i0 = curi; /* fixarg() can change curi */
+		if(isload(i0->op) || isstore(i0->op)) {
+		  mop.ins = curi;
+		  mop.argno = isload(i0->op) ? 0 : 1;
+		  mop.r = TMP(i0->arg[mop.argno].val);
+		}
 		fixarg(&i0->arg[0], argcls(i, 0), i0, fn);
 		fixarg(&i0->arg[1], argcls(i, 1), i0, fn);
 	}
@@ -252,6 +290,7 @@ seljmp(Blk *b, Fn *fn)
 		fixarg(&b->jmp.arg, Kw, 0, fn);
 }
 
+
 void
 rv64_isel(Fn *fn)
 {
@@ -262,7 +301,6 @@ rv64_isel(Fn *fn)
 	int al;
 	int64_t sz;
 	BSet pused[1];
-
 	/* assign slots to fast allocs */
 	b = fn->start;
 	/* specific to NAlign == 3 */ /* or change n=4 and sz /= 4 below */
@@ -294,6 +332,8 @@ rv64_isel(Fn *fn)
 
 	for (b=fn->start; b; b=b->link) {
 		curi = &insb[NIns];
+		nmem = curi;
+		mop.ins = curi;
 		for (sb=(Blk*[3]){b->s1, b->s2, 0}; *sb; sb++)
 			for (p=(*sb)->phi; p; p=p->link) {
 				for (n=0; p->blk[n] != b; n++)

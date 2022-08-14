@@ -220,7 +220,7 @@ emitf(char *s, Ins *i, Fn *fn, FILE *f)
 				}
 				break;
 			case RSlot:
-				offset = slot(r.val, fn);
+				offset = slot(r.val, fn) | r.lval;
 				assert(offset >= -2048 && offset <= 2047);
 				fprintf(f, "%d(x8)", (int)offset);
 				break;
@@ -259,7 +259,7 @@ fixslot(Ref *pr, Fn *fn, FILE *f)
 
 	r = *pr;
 	if (rtype(r) == RSlot) {
-		s = slot(r.val, fn);
+		s = slot(r.val, fn) | r.lval;
 		if (s < -2048 || s > 2047) {
 			fprintf(f, "\tli x31, %"PRId64"\n", s);
 			fprintf(f, "\tadd x31, x8, x31\n");
