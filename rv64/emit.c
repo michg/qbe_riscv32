@@ -419,6 +419,10 @@ emitins(Ins *i, Fn *fn, Blk *b, int id0, FILE *f)
 	   if(i->to.val == i->arg[0].val && rtype(i->arg[1]) == RCon && fn->con[i->arg[1].val].bits.i == 0)
 	       return;
 	   goto Table;
+	case Oadd:
+	   if(i->to.val == i->arg[0].val && rtype(i->arg[1]) == RCon && fn->con[i->arg[1].val].bits.i == 0)
+	       return;
+	   goto Table;
 	case Orbeq:
 		bname = beq;
 		break;

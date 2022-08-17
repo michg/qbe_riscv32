@@ -69,16 +69,7 @@ fixarg(Ref *r, int k, Ins *i, Fn *fn)
 			emit(Oaddr, k, r1, SLOT(s), R);
 			break;
 		}
-		if (k == Kw && fn->tmp[r0.val].cls == Kw) {
-			/* TODO: this sign extension isn't needed
-			 * for 32-bit arithmetic instructions
-			 */
-		 	r1 = newtmp("isel", k, fn);
-		 	emit(Oextsw, Kw, r1, r0, R);
-		} else {
-		   //assert(k == fn->tmp[r0.val].cls);
-		}
-		break;
+        break;
 	}
 	*r = r1;
 }
