@@ -415,6 +415,9 @@ emitins(Ins *i, Fn *fn, Blk *b, int id0, FILE *f)
 		if(i->to.val != i->arg[0].val)
 			emitf("mv %=, %0", i, fn, f);
 		return;
+	case Oextub:
+	   if(i!=b->ins && (i-1)->op == Oloadub && (i-1)->to.val == i->to.val) return;
+	   goto Table;
 	case Oxor:
 	   if(i->to.val == i->arg[0].val && rtype(i->arg[1]) == RCon && fn->con[i->arg[1].val].bits.i == 0)
 	       return;
