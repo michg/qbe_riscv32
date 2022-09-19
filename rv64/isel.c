@@ -220,7 +220,8 @@ Ref r;
 } mop;
 
 static void
-sel(Ins *i, BSet *pused, Blk *b, Fn *fn)
+sel(Ins *i, Blk *b, Fn *fn)
+
 {
 	Ins *i0;
 	Tmp *t;
@@ -235,7 +236,7 @@ sel(Ins *i, BSet *pused, Blk *b, Fn *fn)
 		return;
 	}
 	if (iscmp(i->op, &ck, &cc)) {
-		if (b->jmp.type == Jjnz && (KBASE(ck) == 0) && !bshas(pused, b->id)) {
+		if (b->jmp.type == Jjnz && (KBASE(ck) == 0) && (curi == &insb[NIns])) {
 		   selbcond(*i, ck, cc, b, fn);
 		} else
 		  selcmp(*i, ck, cc, fn);
@@ -291,7 +292,6 @@ rv64_isel(Fn *fn)
 	uint n;
 	int al;
 	int64_t sz;
-	BSet pused[1];
 	/* assign slots to fast allocs */
 	b = fn->start;
 	/* specific to NAlign == 3 */ /* or change n=4 and sz /= 4 below */
@@ -312,15 +312,6 @@ rv64_isel(Fn *fn)
 				*i = (Ins){.op = Onop};
 			}
 
-	bsinit(pused, fn->nblk);
-	for (b=fn->start; b; b=b->link) {
-		  for (p=b->phi; p; p=p->link) {
-			for (n=0;n<p->narg; n++) {
-			  bsset(pused,p->blk[n]->id);
-			}
-		}
-	}
-
 	for (b=fn->start; b; b=b->link) {
 		curi = &insb[NIns];
 		nmem = curi;
@@ -333,7 +324,7 @@ rv64_isel(Fn *fn)
 			}
 		seljmp(b, fn);
 		for (i=&b->ins[b->nins]; i!=b->ins;)
-			sel(--i, pused, b, fn);
+			sel(--i, b, fn);
 		b->nins = &insb[NIns] - curi;
 		idup(&b->ins, curi, b->nins);
 	}
