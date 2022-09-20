@@ -69,7 +69,7 @@ fixarg(Ref *r, int k, Ins *i, Fn *fn)
 			emit(Oaddr, k, r1, SLOT(s), R);
 			break;
 		}
-        break;
+		break;
 	}
 	*r = r1;
 }
@@ -228,6 +228,7 @@ sel(Ins *i, Blk *b, Fn *fn)
 	Use *u;
 	int ck, cc;
 	int s;
+	unsigned int j;
 
 	if (INRANGE(i->op, Oalloc, Oalloc1)) {
 		i0 = curi - 1;
@@ -236,7 +237,9 @@ sel(Ins *i, Blk *b, Fn *fn)
 		return;
 	}
 	if (iscmp(i->op, &ck, &cc)) {
-		if (b->jmp.type == Jjnz && (KBASE(ck) == 0) && (curi == &insb[NIns])) {
+		t = &fn->tmp[i->to.val]; 
+		for(j=0, u=t->use; u<&t->use[t->nuse] && b->id==u->bid; u++, j++);
+		if (b->jmp.type == Jjnz && KBASE(ck) == 0 && curi == &insb[NIns] && j==t->nuse) {
 		   selbcond(*i, ck, cc, b, fn);
 		} else
 		  selcmp(*i, ck, cc, fn);
@@ -244,23 +247,23 @@ sel(Ins *i, Blk *b, Fn *fn)
 	}
 	if(mop.ins!=&insb[NIns] && i->op == Oadd && req(i->to, mop.r) && rtype(i->arg[0])==RTmp && fn->tmp[i->arg[0].val].slot!=-1 && rtype(i->arg[1])==RCon) {
 	   s = (fn->tmp[i->arg[0].val].slot*4 + fn->con[i->arg[1].val].bits.i); 
-       i0 = curi;
-       while(i0 != mop.ins) {
-           if(req(i0->to, mop.r)) {
-               if((i0->op == Oadd) && req(i0->arg[0], mop.r) && (rtype(i0->arg[1])==RCon)) {
-                 s += fn->con[i0->arg[1].val].bits.i;
-               } else {
-                mop.ins=&insb[NIns];
-                break;
-              }
-           }
-          i0++;
-       }
-       if(mop.ins!=&insb[NIns]) {
-          mop.ins->arg[mop.argno] = FSLOT(s >> 2, s & 3);
-          mop.ins=&insb[NIns];
-          return;
-       }
+	   i0 = curi;
+	   while(i0 != mop.ins) {
+		   if(req(i0->to, mop.r)) {
+			   if((i0->op == Oadd) && req(i0->arg[0], mop.r) && (rtype(i0->arg[1])==RCon)) {
+				 s += fn->con[i0->arg[1].val].bits.i;
+			   } else {
+				mop.ins=&insb[NIns];
+				break;
+			  }
+		   }
+		  i0++;
+	   }
+	   if(mop.ins!=&insb[NIns]) {
+		  mop.ins->arg[mop.argno] = FSLOT(s >> 2, s & 3);
+		  mop.ins=&insb[NIns];
+		  return;
+	   }
 	}
 	if (i->op != Onop) {
 		emiti(*i);
