@@ -259,7 +259,7 @@ icpy(Ins *d, Ins *s, ulong n)
 }
 
 static int cmptab[][2] ={
-	             /* negation    swap */
+	/* negation    swap */
 	[Ciule]      = {Ciugt,      Ciuge},
 	[Ciult]      = {Ciuge,      Ciugt},
 	[Ciugt]      = {Ciule,      Ciult},
@@ -541,7 +541,7 @@ bsclr(BSet *bs, uint elt)
 	f(BSet *a, BSet *b)                   \
 	{                                     \
 		uint i;                       \
-		                              \
+									  \
 		assert(a->nt == b->nt);       \
 		for (i=0; i<a->nt; i++)       \
 			a->t[i] op b->t[i];   \
@@ -607,4 +607,16 @@ dumpts(BSet *bs, Tmp *tmp, FILE *f)
 	for (t=Tmp0; bsiter(bs, &t); t++)
 		fprintf(f, " %s", tmp[t].name);
 	fprintf(f, " ]\n");
+}
+
+int
+cprintf(int cond, char *s, ...)
+{
+	if(!cond) {
+		va_list ap;
+		va_start(ap, s);
+		vprintf(s, ap);
+		va_end(ap);
+		return 0;
+	} else return 1;
 }

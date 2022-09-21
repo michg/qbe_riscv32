@@ -106,11 +106,12 @@ main(int ac, char *av[])
 	FILE *inf, *hf;
 	char *f, *sep;
 	int c, asmmode;
+	Topt *to;
 
 	asmmode = Defasm;
 	T = Deftgt;
 	outf = stdout;
-	while ((c = getopt(ac, av, "hd:o:G:t:")) != -1)
+	while ((c = getopt(ac, av, "hd:o:G:t:m:")) != -1)
 		switch (c) {
 		case 'd':
 			for (; *optarg; optarg++)
@@ -139,7 +140,6 @@ main(int ac, char *av[])
 					exit(1);
 				}
 				if (strcmp(optarg, (*t)->name) == 0) {
-					T = **t;
 					break;
 				}
 			}
@@ -154,6 +154,18 @@ main(int ac, char *av[])
 				exit(1);
 			}
 			break;
+		case 'm':
+		    for(to = (**t).topts;to->name;to++) {
+		        if(!to->name) {
+		            fprintf(stderr, "unknown target option '%s'\n", optarg);
+		            exit(1);
+		        }
+		        if(strcmp(to->name, optarg) == 0) {
+		            *(to->val) = 1;
+		            break;
+		        }
+		    }
+		    break;
 		case 'h':
 		default:
 			hf = c != 'h' ? stderr : stdout;
@@ -171,6 +183,8 @@ main(int ac, char *av[])
 		}
 
 	gasinit(asmmode);
+	if((**t).init) (**t).init();
+	T = **t;
 
 	do {
 		f = av[optind];

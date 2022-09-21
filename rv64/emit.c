@@ -58,12 +58,11 @@ static struct {
 	 */
 	{ Oloaduw, Kw, "lw %=, %M0" },
 	{ Oloaduw, Kl, "lwu %=, %M0" },
-	{ Oload,   Kw, "lw %=, %M0" },
-	{ Oload,   Kl, "lw %=, %M0" },
+	{ Oload,   Ki, "lw %=, %M0" },
 	{ Oload,   Ka, "flw %=, %M0" },
 	{ Oextsb,  Ki, "slli %=, %0, 24\n\tsrai %=, %=, 24" },
 	{ Oextub,  Ki, "zext.b %=, %0" },
-	{ Oextsh,  Ki, "sext.h %=, %0" },
+	{ Oextsh,  Ki, "slli %=, %0, 16\n\tsrai %=, %=, 16" },
 	{ Oextuh,  Ki, "slli %=, %0, 16\n\tsrli %=, %=, 16" }, 
 	{ Oextsw,  Kl, "sext.w %=, %0" },
 	{ Oextuw,  Kl, "zext.w %=, %0" },
@@ -80,8 +79,7 @@ static struct {
 	{ Ouwtof,  Ka, "fcvt.s.wu %=, %0" },
 	{ Osltof,  Ka, "fcvt.%k.l %=, %0" },
 	{ Oultof,  Ka, "fcvt.%k.lu %=, %0" },
-	{ Ocast,   Kw, "fmv.x.w %=, %0" },
-	{ Ocast,   Kl, "fmv.x.w %=, %0" },
+	{ Ocast,   Ki, "fmv.x.w %=, %0" },
 	{ Ocast,   Ks, "fmv.w.x %=, %0" },
 	{ Ocast,   Kd, "fmv.w.x %=, %0" },
 	{ Ocopy,   Ki, "mv %=, %0" },
@@ -94,7 +92,7 @@ static struct {
 	{ NOp, 0, 0 }
 };
 
-static char *rname[] = {
+ char *rname[] = {
 	[FP] = "x8",
 	[SP] = "x2", 
 	[GP] = "x3",
@@ -103,7 +101,8 @@ static char *rname[] = {
 	[T6] = "x31",
 	[T0] = "x5", "x6", "x7", "x28", "x29", "x30",
 	[A0] = "x10", "x11", "x12", "x13", "x14", "x15", "x16", "x17",
-	[S1] = "x9", "x18", "x19", "x20", "x21", "x22", "x23", "x24",
+	[S1] = "x9", "x18", "x19",
+	[S4] = "x20", "x21", "x22", "x23", "x24",
 		   "x25", "x26", "x27",
 	[FT0] = "f0", "f1", "f2", "f3", "f4", "f5", "f6", "f7",
 			"f28", "f29", "f30",
@@ -159,7 +158,7 @@ emitf(char *s, Ins *i, Fn *fn, FILE *f)
 		default:
 			die("invalid escape");
 		case '?':
-			if (KBASE(k) == 0)
+			if (KBASE(k) == 0 || opt_softfloat)
 				fputs("x31", f);
 			else
 				fputs("f31", f);;
@@ -210,7 +209,7 @@ emitf(char *s, Ins *i, Fn *fn, FILE *f)
 				assert(pc->type == CAddr);
 				emitaddr(pc, f);
 				if (isstore(i->op)
-				|| (isload(i->op) && KBASE(i->cls) == 1)) {
+				|| (isload(i->op) && (KBASE(i->cls) == 1) && !opt_softfloat)) {
 					/* store (and float load)
 					 * pseudo-instructions need a
 					 * temporary register in which to
@@ -235,6 +234,7 @@ loadcon(Con *c, int r, int k, FILE *f)
 {
 	char *rn;
 	int64_t n;
+	(void) k;
 	rn = rname[r];
 	switch (c->type) {
 	case CAddr:
@@ -330,7 +330,7 @@ emitins(Ins *i, Fn *fn, Blk *b, int id0, FILE *f)
 					optab[i->op].name, "wlsd"[i->cls]);
 			if (omap[o].op == i->op)
 			if (omap[o].cls == i->cls || omap[o].cls == Ka
-			|| (omap[o].cls == Ki && KBASE(i->cls) == 0))
+			|| (omap[o].cls == Ki && (KBASE(i->cls) == 0 || opt_softfloat)))
 				break;
 		}
 		emitf(omap[o].asm, i, fn, f);
@@ -348,6 +348,7 @@ emitins(Ins *i, Fn *fn, Blk *b, int id0, FILE *f)
 				assert(isreg(i->arg[0]));
 				i->arg[1] = i->to;
 				i->to = R;
+				if(opt_softfloat) i->cls = Kw;
 				switch (i->cls) {
 				case Kw: i->op = Ostorew; break;
 				case Kl: i->op = Ostorel; break;
@@ -369,12 +370,17 @@ emitins(Ins *i, Fn *fn, Blk *b, int id0, FILE *f)
 			fixslot(&i->arg[0], fn, f);
 			goto Table;
 		default:
-			assert(isreg(i->arg[0]));
+		    assert(isreg(i->arg[0]));
 			goto Table;
 		}
 		return;
 	case Onop:
 		return;
+	case Ocast:
+	    if(opt_softfloat) {
+	       i->op = Ocopy;
+	    }
+	    goto Table;
 	case Oaddr:
 		assert(rtype(i->arg[0]) == RSlot);
 		rn = rname[i->to.val];
@@ -425,6 +431,17 @@ emitins(Ins *i, Fn *fn, Blk *b, int id0, FILE *f)
 	case Oadd:
 	   if(i->to.val == i->arg[0].val && rtype(i->arg[1]) == RCon && fn->con[i->arg[1].val].bits.i == 0)
 	       return;
+	   goto Table;
+	case Otruncd:
+	case Oexts:
+	   if(KBASE(i->cls) == 1 && opt_softfloat) {
+	       emitf("mv %=, %0 \n", i, fn, f);
+	       return;
+	   }
+	   goto Table;
+	case Ostores:
+	case Ostored:
+	   if(opt_softfloat) i->op = Ostorew;
 	   goto Table;
 	case Orbeq:
 		bname = beq;
@@ -504,7 +521,7 @@ rv64_emitfn(Fn *fn, FILE *f)
 			);
 	}
 	fprintf(f, "\tsw x8, -8(x2)\n");
-	if(fn->ncalls) fprintf(f, "\tsw x1, -4(x2)\n");
+	if(fn->ncalls || opt_softfloat) fprintf(f, "\tsw x1, -4(x2)\n");
 	fprintf(f, "\taddi x8, x2, -8\n");
 
 	frame = (8 + 4 * fn->slot + 15) & ~15;
@@ -571,7 +588,7 @@ rv64_emitfn(Fn *fn, FILE *f)
 				"\taddi x2, x8, %d\n",
 				8 + fn->vararg * 32
 			);
-			if(fn->ncalls) fprintf(f,"\tlw x1, 4(x8)\n");
+			if(fn->ncalls || opt_softfloat) fprintf(f,"\tlw x1, 4(x8)\n");
 			fprintf(f,"\tlw x8, 0(x8)\n"
                       "\tret\n");
 			

@@ -164,7 +164,7 @@ typclass(Class *c, Typ *t, int fpabi, int *gp, int *fp)
 
 	c->nreg = c->nfp + c->ngp;
 	for (i=0; i<c->nreg; i++)
-		if (KBASE(c->cls[i]) == 0)
+		if (KBASE(c->cls[i]) == 0 || opt_softfloat)
 			c->reg[i] = *gp++;
 		else
 			c->reg[i] = *fp++;
@@ -230,7 +230,7 @@ selret(Blk *b, Fn *fn)
 		}
 	} else {
 		k = j - Jretw;
-		if (KBASE(k) == 0) {
+		if (KBASE(k) == 0 || opt_softfloat) {
 			emit(Ocopy, k, TMP(A0), r, R);
 			cty = 1;
 		} else {
@@ -265,7 +265,7 @@ argsclass(Ins *i0, Ins *i1, Class *carg, int retptr)
 		case Opar:
 		case Oarg:
 			*c->cls = i->cls;
-			if (!vararg && KBASE(i->cls) == 1 && nfp > 0) {
+			if (!opt_softfloat && !vararg && KBASE(i->cls) == 1 && nfp > 0) {
 				nfp--;
 				*c->reg = *fp++;
 			} else if (ngp > 0) {
@@ -384,7 +384,7 @@ selcall(Fn *fn, Ins *i0, Ins *i1, Insl **ilp)
 				emit(Ocopy, cr.cls[j], tmp[j], r, R);
 			}
 		}
-	} else if (KBASE(i1->cls) == 0) {
+	} else if (KBASE(i1->cls) == 0 || opt_softfloat) {
 		emit(Ocopy, i1->cls, i1->to, TMP(A0), R);
 		cty |= 1;
 	} else {
@@ -417,6 +417,9 @@ selcall(Fn *fn, Ins *i0, Ins *i1, Insl **ilp)
 	for (i=i0, c=ca; i<i1; i++, c++) {
 		if (c->class & Cfpint) {
 			k = KWIDE(*c->cls) ? Kl : Kw;
+		    if(opt_softfloat)
+			   emit(Ocopy, k, TMP(*c->reg), i->arg[0], R);
+			else
 			emit(Ocast, k, TMP(*c->reg), i->arg[0], R);
 		}
 		if (c->class & Cptr)
@@ -484,6 +487,9 @@ selpar(Fn *fn, Ins *i0, Ins *i1)
 			k = *c->cls;
 			*c->cls = KWIDE(k) ? Kl : Kw;
 			i->to = newtmp("abi", k, fn);
+			if(opt_softfloat)
+			     emit(Ocopy, k, r, i->to, R);
+		    else
 			emit(Ocast, k, r, i->to, R);
 		}
 		if (i->op == Oparc)

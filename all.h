@@ -7,6 +7,8 @@
 
 #define MAKESURE(what, x) typedef char make_sure_##what[(x)?1:-1]
 #define die(...) die_(__FILE__, __VA_ARGS__)
+int cprintf(int cond, char *s, ...);
+#define assertf(cond, ...) assert(cond || cprintf( cond , __VA_ARGS__))
 
 typedef unsigned char uchar;
 typedef unsigned int uint;
@@ -30,6 +32,7 @@ typedef struct Field Field;
 typedef struct Dat Dat;
 typedef struct Lnk Lnk;
 typedef struct Target Target;
+typedef struct Topt Topt;
 
 enum {
 	NString = 72,
@@ -37,6 +40,11 @@ enum {
 	NAlign  = 3,
 	NField  = 32,
 	NBit    = CHAR_BIT * sizeof(bits),
+};
+
+struct Topt {
+    char name[8];
+    int *val;
 };
 
 struct Target {
@@ -49,12 +57,14 @@ struct Target {
 	int nrglob;
 	int *rsave; /* caller-save */
 	int nrsave[2];
+	Topt *topts;
 	bits (*retregs)(Ref, int[2]);
 	bits (*argregs)(Ref, int[2]);
 	int (*memargs)(int);
 	void (*abi)(Fn *);
 	void (*isel)(Fn *);
 	void (*emitfn)(Fn *, FILE *);
+	void (*init)();
 };
 
 #define BIT(n) ((bits)1 << (n))

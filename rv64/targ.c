@@ -14,6 +14,13 @@ int rv64_rsave[] = {
 	FT8, FT9, FT10,
 	-1
 };
+
+int rv64i_rsave[] = {
+	T0, T1, T2, T3, T4, T5,
+	A0, A1, A2, A3, A4, A5, A6, A7,
+	-1
+};
+
 int rv64_rclob[] = {
 	     S1,  S2,   S3,   S4,  S5,  S6,  S7,
 	S8,  S9,  S10,  S11,
@@ -32,6 +39,11 @@ rv64_memargs(int op)
 	return 0;
 }
 
+int opt_softfloat = 0;
+Topt rvopts[] = {{"sf", &opt_softfloat}, {"", 0}};
+
+void rv64_init();
+
 Target T_rv64 = {
 	.name = "rv64",
 	.gpr0 = T0,
@@ -45,10 +57,23 @@ Target T_rv64 = {
 	.retregs = rv64_retregs,
 	.argregs = rv64_argregs,
 	.memargs = rv64_memargs,
+	.topts = rvopts,
 	.abi = rv64_abi,
 	.isel = rv64_isel,
 	.emitfn = rv64_emitfn,
+	.init = rv64_init,
 };
+
+void rv64_init() {
+    if(opt_softfloat) {
+        T_rv64.ngpr = T6 - T0 + 1;
+        T_rv64.fpr0 = S4;
+        T_rv64.nfpr = S11 - S4 + 1;
+        T_rv64.rsave = rv64i_rsave;
+        T_rv64.nrsave[0] = NGPS;
+        T_rv64.nrsave[1] = 0;
+    }
+}
 
 MAKESURE(rsave_size_ok, sizeof rv64_rsave == (NGPS+NFPS+1) * sizeof(int));
 MAKESURE(rclob_size_ok, sizeof rv64_rclob == (NCLR+1) * sizeof(int));

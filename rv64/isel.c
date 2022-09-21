@@ -1,5 +1,6 @@
 #include "all.h"
 
+
 static int
 memarg(Ref *r, int op, Ins *i)
 {
@@ -41,7 +42,7 @@ fixarg(Ref *r, int k, Ins *i, Fn *fn)
 			 * immediates
 			 */
 			assert(c->type == CBits);
-			n = gasstash(&c->bits, KWIDE(k) ? 8 : 4);
+			n = gasstash(&c->bits, (c->flt == 2) ? 8 : 4);
 			vgrow(&fn->con, ++fn->ncon);
 			c = &fn->con[fn->ncon-1];
 			sprintf(buf, "fp%d", n);
@@ -84,6 +85,113 @@ negate(Ref *pr, Fn *fn)
 	*pr = r;
 }
 
+
+	enum ftypes {
+		fadd,
+		fsub,
+		fmul,
+		fdiv,
+		fneg,
+		fcpy,
+		sw2f,
+		f2sw,
+		feq,
+		fle,
+		flt,
+		NFTYPES
+	};
+
+	struct sfpar {
+		char *fname;
+	};
+
+	struct sfpar sffuncs[] = {
+		[fadd] = {"float32_add"},
+		[fsub] = {"float32_sub"},
+		[fmul] = {"float32_mul"},
+		[fdiv] = {"float32_div"},
+		[sw2f] = {"int32_to_float32"},
+		[f2sw] = {"float32_to_int32_round_to_zero"},
+		[feq] =  {"float32_eq"},
+		[fle] =  {"float32_le"},
+		[flt] =  {"float32_lt"},
+		[fneg] = {"float32_neg"},
+	};
+
+
+
+static void
+selfloat(Ins i, Fn *fn) {
+	Ins *icmp;
+	Con *c;
+	int ftype;
+	int parc;
+	switch(i.op) {
+	case Oadd:
+		ftype = fadd;
+		break;
+	case Osub:
+		ftype = fsub;
+		break;
+	case Omul:
+		ftype = fmul;
+		break;
+	case Odiv:
+		ftype = fdiv;
+		break;
+	case Ouwtof:
+	case Oswtof:
+		ftype = sw2f;
+		break;
+	case Odtosi:
+	case Ostosi:
+		ftype = f2sw;
+		break;
+	case Oceqs:
+	case Oceqd:
+		ftype = feq;
+		break;
+	case Ocles:
+	case Ocled:
+		ftype = fle;
+		break;
+	case Oclts:
+	case Ocltd:
+		 ftype = flt;
+		 break;
+	case Oneg:
+		 ftype = fneg;
+		 break;
+	default:
+		assertf(0, "unknown softfunction %s\r\n",optab[i.op].name);
+	}
+	parc = req(i.arg[1], R) ? 1:2;
+	vgrow(&fn->con, ++fn->ncon);
+	c = &fn->con[fn->ncon-1];
+	c->type = CAddr;
+	c->label = intern(sffuncs[ftype].fname);
+	emit(Ocopy, i.cls, i.to, TMP(A0), R);
+	icmp = curi;
+	fixarg(&icmp->arg[0], argcls(icmp, 0), icmp, fn);
+	emit(Ocall, i.cls, R, CON(c-fn->con), CALL((parc<<4) + 1));
+	emit(Ocopy, argcls(&i, 0), TMP(A0), i.arg[0], R);
+	icmp = curi;
+	fixarg(&icmp->arg[0], argcls(&i, 0), icmp, fn);
+	if(parc == 2) {
+		emit(Ocopy, argcls(&i, 0), TMP(A1), i.arg[1], R);
+		icmp = curi;
+		fixarg(&icmp->arg[0], argcls(&i, 0), icmp, fn);
+	}
+}
+
+
+static void
+emitcmpi(Ins i, Fn *fn)
+{
+   if(opt_softfloat && INRANGE(i.op, Ocmps, Ocmpd1)) selfloat(i, fn);
+		else emiti(i);
+}
+
 static void
 selcmp(Ins i, int k, int op, Fn *fn)
 {
@@ -117,11 +225,18 @@ selcmp(Ins i, int k, int op, Fn *fn)
 	case Ciule: sign = 0, swap = 1, neg = 1; break;
 	case Ciult: sign = 0, swap = 0, neg = 0; break;
 	case NCmpI+Cfeq:
-	case NCmpI+Cfge:
-	case NCmpI+Cfgt:
+
 	case NCmpI+Cfle:
 	case NCmpI+Cflt:
 		swap = 0, neg = 0;
+		break;
+	case NCmpI+Cfge:
+		swap = 1;
+		i.op = Oclts;
+		break;
+	case NCmpI+Cfgt:
+		swap = 1;
+		i.op = Ocles;
 		break;
 	case NCmpI+Cfuo:
 		negate(&i.to, fn);
@@ -156,7 +271,7 @@ selcmp(Ins i, int k, int op, Fn *fn)
 	}
 	if (neg)
 		negate(&i.to, fn);
-	emiti(i);
+	emitcmpi(i, fn);
 	icmp = curi;
 	fixarg(&icmp->arg[0], k, icmp, fn);
 	fixarg(&icmp->arg[1], k, icmp, fn);
@@ -221,7 +336,6 @@ Ref r;
 
 static void
 sel(Ins *i, Blk *b, Fn *fn)
-
 {
 	Ins *i0;
 	Tmp *t;
@@ -236,17 +350,24 @@ sel(Ins *i, Blk *b, Fn *fn)
 		fixarg(&i0->arg[0], Kl, i0, fn);
 		return;
 	}
+
 	if (iscmp(i->op, &ck, &cc)) {
 		t = &fn->tmp[i->to.val]; 
 		for(j=0, u=t->use; u<&t->use[t->nuse] && b->id==u->bid; u++, j++);
-		if (b->jmp.type == Jjnz && KBASE(ck) == 0 && curi == &insb[NIns] && j==t->nuse) {
+		if (b->jmp.type == Jjnz && (KBASE(ck) == 0) && (curi == &insb[NIns]) && j==t->nuse) {
 		   selbcond(*i, ck, cc, b, fn);
-		} else
-		  selcmp(*i, ck, cc, fn);
+		} else {
+		   selcmp(*i, ck, cc, fn);
+		}
 		return;
 	}
+	if(opt_softfloat && (KBASE(i->cls) == 1 || i->op == Ostosi || i->op == Odtosi )
+	&& i->op != Ocopy && i->op!=Oload && i->op!=Ocast && i->op!=Otruncd && i->op!=Oexts) {
+	   selfloat(*i, fn);
+	   return;
+	}
 	if(mop.ins!=&insb[NIns] && i->op == Oadd && req(i->to, mop.r) && rtype(i->arg[0])==RTmp && fn->tmp[i->arg[0].val].slot!=-1 && rtype(i->arg[1])==RCon) {
-	   s = (fn->tmp[i->arg[0].val].slot*4 + fn->con[i->arg[1].val].bits.i); 
+	   s = (fn->tmp[i->arg[0].val].slot*4 + fn->con[i->arg[1].val].bits.i);
 	   i0 = curi;
 	   while(i0 != mop.ins) {
 		   if(req(i0->to, mop.r)) {
@@ -295,6 +416,7 @@ rv64_isel(Fn *fn)
 	uint n;
 	int al;
 	int64_t sz;
+
 	/* assign slots to fast allocs */
 	b = fn->start;
 	/* specific to NAlign == 3 */ /* or change n=4 and sz /= 4 below */
