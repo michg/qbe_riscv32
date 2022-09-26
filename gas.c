@@ -44,8 +44,7 @@ gasemitlnk(char *n, Lnk *l, char *s, FILE *f)
 void
 gasemitfntail(char *fn, FILE *f)
 {
-    (void)fn;
-    (void)f;
+    fprintf(f, ".globl %s_end\n%s_end:\n", fn, fn);
 }
 
 void
