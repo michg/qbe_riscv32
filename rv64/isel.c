@@ -94,7 +94,9 @@ negate(Ref *pr, Fn *fn)
 		fneg,
 		fcpy,
 		sw2f,
+		uw2f,
 		f2sw,
+		f2uw,
 		feq,
 		fle,
 		flt,
@@ -111,7 +113,9 @@ negate(Ref *pr, Fn *fn)
 		[fmul] = {"float32_mul"},
 		[fdiv] = {"float32_div"},
 		[sw2f] = {"int32_to_float32"},
+		[uw2f] = {"uint32_to_float32"},
 		[f2sw] = {"float32_to_int32_round_to_zero"},
+		[f2uw] = {"float32_to_uint32"},
 		[feq] =  {"float32_eq"},
 		[fle] =  {"float32_le"},
 		[flt] =  {"float32_lt"},
@@ -139,13 +143,21 @@ selfloat(Ins i, Fn *fn) {
 	case Odiv:
 		ftype = fdiv;
 		break;
-	case Ouwtof:
 	case Oswtof:
+	case Osltof:
 		ftype = sw2f;
+		break;
+	case Ouwtof:
+	case Oultof:
+		ftype = uw2f;
 		break;
 	case Odtosi:
 	case Ostosi:
 		ftype = f2sw;
+		break;
+	case Odtoui:
+	case Ostoui:
+		ftype = f2uw;
 		break;
 	case Oceqs:
 	case Oceqd:
@@ -361,7 +373,7 @@ sel(Ins *i, Blk *b, Fn *fn)
 		}
 		return;
 	}
-	if(opt_softfloat && (KBASE(i->cls) == 1 || i->op == Ostosi || i->op == Odtosi )
+	if(opt_softfloat && (KBASE(i->cls) == 1 || INRANGE(i->op, Ostosi, Odtoui) )
 	&& i->op != Ocopy && i->op!=Oload && i->op!=Ocast && i->op!=Otruncd && i->op!=Oexts) {
 	   selfloat(*i, fn);
 	   return;

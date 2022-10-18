@@ -19,7 +19,6 @@ static struct {
 	{ Odiv,    Ki, "div %=, %0, %1" },
 	{ Odiv,    Ka, "fdiv.s %=, %0, %1" },
 	{ Orem,    Ki, "rem %=, %0, %1" },
-	{ Orem,    Kl, "rem %=, %0, %1" },
 	{ Oudiv,   Ki, "divu %=, %0, %1" },
 	{ Ourem,   Ki, "remu %=, %0, %1" },
 	{ Omul,    Ki, "mul %=, %0, %1" },
@@ -57,28 +56,21 @@ static struct {
 	 * values stored in 64-bit registers
 	 */
 	{ Oloaduw, Kw, "lw %=, %M0" },
-	{ Oloaduw, Kl, "lwu %=, %M0" },
 	{ Oload,   Ki, "lw %=, %M0" },
 	{ Oload,   Ka, "flw %=, %M0" },
 	{ Oextsb,  Ki, "slli %=, %0, 24\n\tsrai %=, %=, 24" },
 	{ Oextub,  Ki, "zext.b %=, %0" },
 	{ Oextsh,  Ki, "slli %=, %0, 16\n\tsrai %=, %=, 16" },
 	{ Oextuh,  Ki, "slli %=, %0, 16\n\tsrli %=, %=, 16" }, 
-	{ Oextsw,  Kl, "sext.w %=, %0" },
-	{ Oextuw,  Kl, "zext.w %=, %0" },
 	{ Otruncd, Ks, "fmv.s %=, %0" }, 
 	{ Oexts,   Kd, "fmv.s %=, %0" },
-	{ Ostosi,  Kw, "fcvt.w.s %=, %0" },
-	{ Ostosi,  Kl, "fcvt.l.s %=, %0, rtz" },
-	{ Ostoui,  Kw, "fcvt.wu.s %=, %0" },
-	{ Ostoui,  Kl, "fcvt.lu.s %=, %0, rtz" },
-	{ Odtosi,  Kw, "fcvt.w.s %=, %0" },
-	{ Odtosi,  Kl, "fcvt.l.s %=, %0, rtz" },
-	{ Odtoui,  Kw, "fcvt.wu.d %=, %0" },
+	{ Ostosi,  Ki, "fcvt.w.s %=, %0" },
+	{ Ostoui,  Ki, "fcvt.wu.s %=, %0" },
+	{ Odtosi,  Ki, "fcvt.w.s %=, %0" },
 	{ Oswtof,  Ka, "fcvt.s.w %=, %0" },
 	{ Ouwtof,  Ka, "fcvt.s.wu %=, %0" },
-	{ Osltof,  Ka, "fcvt.%k.l %=, %0" },
-	{ Oultof,  Ka, "fcvt.%k.lu %=, %0" },
+	{ Osltof,  Ka, "fcvt.s.w %=, %0" },
+	{ Oultof,  Ka, "fcvt.s.wu %=, %0" },
 	{ Ocast,   Ki, "fmv.x.w %=, %0" },
 	{ Ocast,   Ks, "fmv.w.x %=, %0" },
 	{ Ocast,   Kd, "fmv.w.x %=, %0" },
@@ -336,6 +328,7 @@ emitins(Ins *i, Fn *fn, Blk *b, int id0, FILE *f)
 		emitf(omap[o].asm, i, fn, f);
 		return;
 	case Ocopy:
+	    Copy:
 		if (req(i->to, i->arg[0]))
 			return;
 		if (rtype(i->to) == RSlot) {
@@ -379,6 +372,7 @@ emitins(Ins *i, Fn *fn, Blk *b, int id0, FILE *f)
 	case Ocast:
 	    if(opt_softfloat) {
 	       i->op = Ocopy;
+	       goto Copy;
 	    }
 	    goto Table;
 	case Oaddr:
@@ -435,9 +429,9 @@ emitins(Ins *i, Fn *fn, Blk *b, int id0, FILE *f)
 	case Otruncd:
 	case Oexts:
 	   if(KBASE(i->cls) == 1 && opt_softfloat) {
-	       emitf("mv %=, %0 \n", i, fn, f);
-	       return;
-	   }
+	       i->op = Ocopy;
+	       goto Copy;
+	       }
 	   goto Table;
 	case Ostores:
 	case Ostored:
@@ -590,7 +584,7 @@ rv64_emitfn(Fn *fn, FILE *f)
 			);
 			if(fn->ncalls || opt_softfloat) fprintf(f,"\tlw x1, 4(x8)\n");
 			fprintf(f,"\tlw x8, 0(x8)\n"
-                      "\tret\n");
+			"\tret\n");
 			
 			break;
 		case Jjmp:

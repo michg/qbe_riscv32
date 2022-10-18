@@ -417,9 +417,6 @@ selcall(Fn *fn, Ins *i0, Ins *i1, Insl **ilp)
 	for (i=i0, c=ca; i<i1; i++, c++) {
 		if (c->class & Cfpint) {
 			k = KWIDE(*c->cls) ? Kl : Kw;
-		    if(opt_softfloat)
-			   emit(Ocopy, k, TMP(*c->reg), i->arg[0], R);
-			else
 			emit(Ocast, k, TMP(*c->reg), i->arg[0], R);
 		}
 		if (c->class & Cptr)
@@ -487,9 +484,6 @@ selpar(Fn *fn, Ins *i0, Ins *i1)
 			k = *c->cls;
 			*c->cls = KWIDE(k) ? Kl : Kw;
 			i->to = newtmp("abi", k, fn);
-			if(opt_softfloat)
-			     emit(Ocopy, k, r, i->to, R);
-		    else
 			emit(Ocast, k, r, i->to, R);
 		}
 		if (i->op == Oparc)
