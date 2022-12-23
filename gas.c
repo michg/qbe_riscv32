@@ -42,9 +42,10 @@ gasemitlnk(char *n, Lnk *l, char *s, FILE *f)
 }
 
 void
-gasemitfntail(char *fn, FILE *f)
+gasemitfntail(Fn *fn, FILE *f)
 {
-    fprintf(f, ".globl %s_end\n%s_end:\n", fn, fn);
+    if(fn->lnk.export)
+        fprintf(f, ".globl %s_end\n%s_end:\n", fn->name, fn->name);
 }
 
 void

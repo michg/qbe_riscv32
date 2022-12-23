@@ -92,7 +92,7 @@ func(Fn *fn)
 			fn->rpo[n]->link = fn->rpo[n+1];
 	if (!dbg) {
 		T.emitfn(fn, outf);
-		gasemitfntail(fn->name, outf);
+		gasemitfntail(fn, outf);
 		fprintf(outf, "/* end function %s */\n\n", fn->name);
 	} else
 		fprintf(stderr, "\n");
