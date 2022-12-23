@@ -547,7 +547,7 @@ extern char *gasloc;
 extern char *gassym;
 void gasinit(enum Asm);
 void gasemitlnk(char *, Lnk *, char *, FILE *);
-void gasemitfntail(char *, FILE *);
+void gasemitfntail(Fn *, FILE *);
 void gasemitdat(Dat *, FILE *);
 int gasstash(void *, int);
 void gasemitfin(FILE *);
